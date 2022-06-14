@@ -1,0 +1,76 @@
+version: '3.1'
+
+services:
+  pi-rfc3161timestampingserver:
+    build:
+      context: ./ # Local
+      dockerfile: Dockerfile_arm64
+    #      context: https://github.com/elbosso/rfc3161timestampingserver.git # Build from Github
+    container_name: rfc3161timestampingserver
+    hostname: rfc3161timestampingserver
+#    ports:
+#      - 7000:7000
+    restart: unless-stopped
+    env_file:
+      - environment.env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.rfc3161timestampingserver-http.entrypoints=http"
+      - "traefik.http.routers.rfc3161timestampingserver-http.rule=Host(`rfc3161timestampingserver.pi-docker.lab`)"
+#      - "traefik.http.routers.rfc3161timestampingserver-http.middlewares=rfc3161timestampingserver-https"
+      - "traefik.http.services.rfc3161timestampingserver-http.loadbalancer.server.port=7000"
+      - "traefik.http.middlewares.rfc3161timestampingserver-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.rfc3161timestampingserver.entrypoints=https"
+      - "traefik.http.routers.rfc3161timestampingserver.rule=Host(`rfc3161timestampingserver.pi-docker.lab`)"
+      - "traefik.http.routers.rfc3161timestampingserver.tls=true"
+#      - "traefik.http.routers.rfc3161timestampingserver.rule=Host(`rfc3161timestampingserver.pi-docker.lab`)"
+#      - "traefik.http.services.rfc3161timestampingserver.loadbalancer.server.port=7000"
+      - "traefik.docker.network=pi_traefik_proxy"
+    depends_on:
+      - rfc3161serialnumberprovider
+#      "rfc3161serialnumberprovider":
+#        condition: service_healthy
+    secrets:
+      - chain.pem
+      - tsa.crt
+      - tsa.key
+      - javax.persistence.jdbc.password_FILE
+    networks:
+      - traefik_proxy
+      - default
+#      - timestamping_network
+  rfc3161serialnumberprovider:
+    image: postgres:12
+    container_name: rfc3161serialnumberprovider
+    restart: unless-stopped
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data      
+    env_file:
+      - postgres.env
+#    secrets:
+#      - POSTGRES_PASSWORD_FILE
+#    healthcheck:
+#      test: ["CMD-SHELL", "pg_isready -U jdbctestuser"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
+    networks:
+      - default
+
+networks:
+  traefik_proxy:
+    external:
+      name: pi_traefik_proxy
+
+secrets:
+  chain.pem:
+    file: ./crypto/chain.pem
+  tsa.crt:
+    file: ./crypto/tsa.crt
+  tsa.key:
+    file: ./crypto/tsa.key
+  javax.persistence.jdbc.password_FILE:
+    file: ./crypto/javax.persistence.jdbc.password_FILE
+#  POSTGRES_PASSWORD_FILE:
+#    file: ./crypto/javax.persistence.jdbc.password_FILE
+
